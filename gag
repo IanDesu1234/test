@@ -1,0 +1,74 @@
+local Player = game:GetService("Players").LocalPlayer
+
+-- Fake mutation list (name + icon ID)
+local Mutations = {
+    {name = "Shiny", icon = "rbxassetid://12345678"},
+    {name = "Golden", icon = "rbxassetid://12345679"},
+    {name = "Rainbow", icon = "rbxassetid://12345680"},
+    {name = "Frozen", icon = "rbxassetid://12345681"},
+    {name = "Inferno", icon = "rbxassetid://12345682"},
+    {name = "Glitched", icon = "rbxassetid://12345683"},
+    {name = "Ascended", icon = "rbxassetid://12345684"},
+}
+
+-- UI Setup
+local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
+ScreenGui.Name = "LocalPetRandomizer"
+ScreenGui.ResetOnSpawn = false
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 300, 0, 200)
+Frame.Position = UDim2.new(0.5, -150, 0.8, -100)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 12)
+
+local Title = Instance.new("TextLabel", Frame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Position = UDim2.new(0, 0, 0, 5)
+Title.Text = "Pet Mutation"
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 20
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+
+-- Icon
+local Icon = Instance.new("ImageLabel", Frame)
+Icon.Size = UDim2.new(0, 100, 0, 100)
+Icon.Position = UDim2.new(0.5, -50, 0, 40)
+Icon.BackgroundTransparency = 1
+Icon.Image = ""
+
+-- Name label
+local MutLabel = Instance.new("TextLabel", Frame)
+MutLabel.Size = UDim2.new(1, 0, 0, 30)
+MutLabel.Position = UDim2.new(0, 0, 0, 145)
+MutLabel.Text = ""
+MutLabel.Font = Enum.Font.SourceSans
+MutLabel.TextSize = 18
+MutLabel.TextColor3 = Color3.new(1, 1, 1)
+MutLabel.BackgroundTransparency = 1
+
+-- Button
+local Button = Instance.new("TextButton", Frame)
+Button.Size = UDim2.new(0.8, 0, 0, 30)
+Button.Position = UDim2.new(0.1, 0, 1, -35)
+Button.Text = "Mutate!"
+Button.Font = Enum.Font.SourceSansBold
+Button.TextSize = 18
+Button.TextColor3 = Color3.new(1, 1, 1)
+Button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
+
+-- Randomizer logic
+Button.MouseButton1Click:Connect(function()
+    Button.Text = "Mutating..."
+    Button.Active = false
+    wait(1)
+
+    local choice = Mutations[math.random(1, #Mutations)]
+    Icon.Image = choice.icon
+    MutLabel.Text = choice.name
+
+    Button.Text = "Mutate Again"
+    Button.Active = true
+end)
