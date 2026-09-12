@@ -12,6 +12,7 @@ local GAME_ID_MAIN = 7436755782
 local GAME_ID_ALT = 10200395747
 local CONNECTIVITY_URL = "https://www.google.com"
 local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/main/main2.lua"
+local RAYFIELD_URL = "https://sirius.menu/rayfield"
 
 local function sendWebhook(webhookUrl, messageText)
     if typeof(messageText) ~= "string" or messageText == "" then
@@ -355,12 +356,38 @@ if payloadSource ~= nil and payloadSource ~= "" then
         for k, v in pairs(runErr) do
             print("Payload key:", tostring(k), type(v))
         end
+        local entryFn = nil
+        local entryName = nil
         for _, name in ipairs({"Init", "init", "Load", "load", "Start", "start", "Main", "main", "Run", "run", "Execute", "Show"}) do
             if type(runErr[name]) == "function" then
-                print("Payload calling:", name)
-                local ok2, err2 = pcall(runErr[name])
-                print("Payload entry:", name, ok2, tostring(err2))
+                entryFn = runErr[name]
+                entryName = name
                 break
+            end
+        end
+        if entryFn then
+            print("Loading Rayfield...")
+            local rayOk, rayErr = pcall(function()
+                return loadstringFn(game:HttpGet(RAYFIELD_URL))()
+            end)
+            print("Rayfield load:", rayOk, tostring(rayErr))
+            if rayOk and rayErr ~= nil then
+                local winOk, window = pcall(function()
+                    return rayErr:CreateWindow({
+                        Name = "BeastHub",
+                        LoadingTitle = "BeastHub",
+                        LoadingSubtitle = "by Beast",
+                        ConfigurationSaving = { Enabled = false },
+                        Discord = { Enabled = false },
+                        KeySystem = false
+                    })
+                end)
+                print("Rayfield window:", winOk, tostring(window))
+                if winOk and window ~= nil then
+                    print("Payload calling:", entryName, "with window")
+                    local ok2, err2 = pcall(entryFn, window)
+                    print("Payload entry:", entryName, ok2, tostring(err2))
+                end
             end
         end
     end
