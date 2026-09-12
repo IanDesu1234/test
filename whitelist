@@ -1,10 +1,4 @@
 return {
-    ["roblox_user_8352220472"] = {
-        whitelisted = true,
-        expiry = "lifetime",
-        extraNote = "",
-        extraNote2 = ""
-    },
     ["StickOwwz"] = {
         whitelisted = true,
         expiry = "lifetime",
