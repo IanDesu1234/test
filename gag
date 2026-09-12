@@ -11,7 +11,7 @@ local DISCORD_INVITE = "https://discord.gg/pHEjRY9cXe"
 local GAME_ID_MAIN = 7436755782
 local GAME_ID_ALT = 10200395747
 local CONNECTIVITY_URL = "https://www.google.com"
-local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/main/script.lua"
+local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/main/main2.lua"
 
 local function sendWebhook(webhookUrl, messageText)
     if typeof(messageText) ~= "string" or messageText == "" then
@@ -351,6 +351,18 @@ if payloadSource ~= nil and payloadSource ~= "" then
     print("Payload run:", runOk, tostring(runErr))
     if not runOk then
         warn("[BeastHub] Payload error: " .. tostring(runErr))
+    elseif type(runErr) == "table" then
+        for k, v in pairs(runErr) do
+            print("Payload key:", tostring(k), type(v))
+        end
+        for _, name in ipairs({"Init", "init", "Load", "load", "Start", "start", "Main", "main", "Run", "run", "Execute", "Show"}) do
+            if type(runErr[name]) == "function" then
+                print("Payload calling:", name)
+                local ok2, err2 = pcall(runErr[name])
+                print("Payload entry:", name, ok2, tostring(err2))
+                break
+            end
+        end
     end
 else
     print("Payload empty, skipped")
