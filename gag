@@ -384,6 +384,22 @@ if payloadSource ~= nil and payloadSource ~= "" then
                 end)
                 print("Rayfield window:", winOk, tostring(window))
                 if winOk and window ~= nil then
+                    pcall(function()
+                        local origGet = game.HttpGet
+                        game.HttpGet = function(self, url)
+                            local u = url
+                            if u == nil and type(self) == "string" then u = self end
+                            print("Fetch:", tostring(u):sub(1, 160))
+                            local ok, res = pcall(origGet, self, url)
+                            if ok and type(res) == "string" then
+                                print("Fetch ok:", tostring(u):sub(1, 80), "len:", #res)
+                            else
+                                print("Fetch FAIL:", tostring(u):sub(1, 120), tostring(res):sub(1, 120))
+                            end
+                            if not ok then error(res) end
+                            return res
+                        end
+                    end)
                     print("Payload calling:", entryName, "with window")
                     local ok2, err2 = pcall(entryFn, window)
                     print("Payload entry:", entryName, ok2, tostring(err2))
