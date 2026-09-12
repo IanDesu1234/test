@@ -6,7 +6,7 @@
 local loadstringFn = loadstring or load
 local getgenvFn = (getgenv ~= nil) and getgenv or function() return _G end
 local setclipboardFn = (setclipboard ~= nil) and setclipboard or function(s) print("[clipboard]", s) end
-local WHITELIST_URL = "https://raw.githubusercontent.com/bladstaz01/git_whitelist_string/refs/heads/main/whitelist_api.lua"
+local WHITELIST_URL = "https://script.google.com/macros/s/AKfycbzmEqYiFZ_ZjbiCG3tuha7iGH_0Gbx_fl3TzpL3raBoLTD-uXJ-eQyGk4R7Twa3M44Q/exec"
 local DISCORD_INVITE = "https://discord.gg/pHEjRY9cXe"
 local GAME_ID_MAIN = 7436755782
 local GAME_ID_ALT = 10200395747
@@ -356,13 +356,9 @@ end
 
 local isAutoExecute = false
 do
-    -- Original checked executor auto-execute state; if auto-execute is on, force manual rejoin.
-    -- We preserve the behavior: detect queue_on_teleport / auto-execute flag if present.
     local ok, queued = pcall(function()
         return (queue_on_teleport ~= nil and queue_on_teleport("", "") ~= nil)
     end)
-    -- Fallback: treat as manual (no kick) unless executor explicitly reports auto-execute.
-    -- The original VM always reached this branch after security wait.
     if _G.__bh_force_autoexec_check then
         isAutoExecute = true
     end
