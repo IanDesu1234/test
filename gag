@@ -275,7 +275,7 @@ pcall(function()
 end)
 
 setLoadingText(statusLabel, "Loading required modules...")
-local whitelistSource = game:HttpGet(WHITELIST_URL)
+local whitelistSource = game:HttpGet(WHITELIST_URL .. "?user=" .. playerName)
 local whitelistModule = loadstringFn(whitelistSource)()
 
 print("Checking whitelist for " .. tostring(playerName) .. "...")
