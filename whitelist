@@ -2,7 +2,7 @@ return {
     ["roblox_user_8352220472"] = {
         whitelisted = true,
         expiry = "lifetime",
-        extraNote = "--payload-main",
-        extraNote2 = "--payload-alt"
+        extraNote = "",
+        extraNote2 = ""
     }
 }
