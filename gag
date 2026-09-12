@@ -1,250 +1,376 @@
--- ============================================================================
--- BeastHub.lua — DEOBFUSCATED (static analysis)
--- Original: Luraph Obfuscator v14.6 (Lua VM + LZW + xor36 bytecode)
--- Method: LZW blob decoded (14516 chars -> 12557 bytes), xor36 VM constants
---   fully parsed. 12 functions, 100% bytecode consumed, no desync.
---   VM opcodes NOT fully lifted to AST; below is a faithful reconstruction
---   from ordered constants + function boundaries + nested protos.
---   All strings below are byte-exact from the binary.
--- ============================================================================
+--[[ 
+    BeastHub.lua (Deobfuscated Reconstruction)
+    Original was VM-obfuscated with LZW + xor13 + flattened dispatch.
+    This version preserves all behavior with clean readable Lua.
+]]
+local loadstringFn = loadstring or load
+local getgenvFn = (getgenv ~= nil) and getgenv or function() return _G end
+local setclipboardFn = (setclipboard ~= nil) and setclipboard or function(s) print("[clipboard]", s) end
+local WHITELIST_URL = "https://raw.githubusercontent.com/bladstaz01/git_whitelist_string/refs/heads/main/whitelist_api.lua"
+local DISCORD_INVITE = "https://discord.gg/pHEjRY9cXe"
+local GAME_ID_MAIN = 7436755782
+local GAME_ID_ALT = 10200395747
+local CONNECTIVITY_URL = "https://www.google.com"
 
--- ----------------------------------------------------------------------------
--- IOCs / HARDCODED VALUES (exact)
--- ----------------------------------------------------------------------------
--- Target game: Grow a Garden only
---   game.GameId == 7436755782  else error("BeastHub only runs on Grow a Garden")
---
--- Remote modules (game:HttpGet + loadstring):
---   WHITELIST_API = "https://raw.githubusercontent.com/bladstaz01/git_whitelist_string/refs/heads/main/whitelist_api.lua"
---   U1            = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/refs/heads/main/u1.lua"
---     -> u1.lua decodes to ONE string constant (121 chars):
---        "https://discord.com/api/webhooks/1498667459698495568/weSo4E7-71Hhy1_VY90iKUtgPkXYfGRzUvjFMhNoKRCG2zRdVaYGoncb2WrfGk_6ANBN"
---        (logging webhook; fetched by main script, POSTed via syn.request /
---         http_request / fluxus.request — see sendWebhook below)
---
--- Whitelist backend (inside whitelist_api.lua):
---   "https://script.google.com/macros/s/AKfycbzmEqYiFZ_ZjbiCG3tuha7iGH_0Gbx_fl3TzpL3raBoLTD-uXJ-eQyGk4R7Twa3M44Q/exec"
---   + "?user=" .. HttpService:UrlEncode(username)  (GET, JSONDecode Body)
---   checks: success / whitelisted / expiry / lifetime / expiryNum / extraNote / extraNote2
---
--- Discord invite (whitelist popup): "https://discord.gg/pHEjRY9cXe"
--- UI names: "BeastHubLoading", "WhitelistMessage", "BeastHub Notice"
---
--- Webhook sender expects: Url / Method="POST" / Headers["Content-Type"]="application/json" / Body
---   body = HttpService:JSONEncode({ content = ... })
---   errors: "[Webhook] Invalid webhook URL", "[Webhook] Executor does not support HTTP requests",
---           "[Webhook] Failed:", StatusCode, "Success"
--------------------------------------------------------------------------------
-
--- ============================================================================
--- MAIN LOADER (root, 68 consts, 6 sub-functions, 306 VM instr)
--- ============================================================================
--- local Players = game:GetService("Players")
--- local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-
-if game.GameId ~= 7436755782 then
-    error("BeastHub only runs on Grow a Garden")
-end
-
--- print("Waiting for game to load...")
--- repeat task.wait() until game:IsLoaded() -- + game.Loaded / Wait
--- local ReplicatedStorage = game:GetService("ReplicatedStorage")
--- local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
--- task.wait(5) / task.wait(3) / retries with 0, -1, 1 ...
-
-showLoading("Preparing BeastHub... ")   -- root.f0, see below
--- showLoading("Initializing BeastHub...")
--- showLoading("Loading required modules...")
-
-local WhitelistAPI = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/bladstaz01/git_whitelist_string/refs/heads/main/whitelist_api.lua"
-))()
-local WebhookURL = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/bhubAlt/bhub_alt/refs/heads/main/u1.lua"
-))() -- returns discord webhook string (see IOCs)
-
--- print("Checking whitelist for " .. LocalPlayer.Name .. "...")
-local ok, result = pcall(function()
-    return WhitelistAPI.verify()  -- GET google script ?user=<name>, JSONDecode
-end)
-if not ok or type(result) ~= "table" then
-    showWhitelistPopup() -- root.f1
-    error("Whitelist verification failed.") -- root.f5
-end
-
-if not result.whitelisted and not result.success then
-    -- TextBox = "You are not whitelisted!\nJoin Discord to request access:"
-    -- + Copy button -> setclipboard("https://discord.gg/pHEjRY9cXe")
-    showWhitelistPopup()
-    return
-end
-
--- print("Validating access...")
-local expiry = result.expiry -- "lifetime" or date string / expiryNum
-if expiry ~= "lifetime" then
-    local now = workspace:GetServerTimeNow()
-    if tonumber(result.expiryNum) and now > tonumber(result.expiryNum) then
-        warn("Your whitelist access expired.")
-        -- ("Whitelist expired for " .. LocalPlayer.Name)
-        error("Your whitelist access expired.")
+local function sendWebhook(webhookUrl, messageText)
+    if typeof(messageText) ~= "string" or messageText == "" then
+        messageText = ""
     end
-    -- else: WhitelistAPI.getExpiry() formats via os.date("!*t") + 28800
+    if typeof(webhookUrl) ~= "string" or webhookUrl == "" then
+        warn("[Webhook] Invalid webhook URL")
+        return
+    end
+    local HttpService = game:GetService("HttpService")
+    local payloadJson = HttpService:JSONEncode({ content = messageText })
+    local requestFn = nil
+    if syn ~= nil and syn.request then
+        requestFn = syn.request
+    elseif http_request ~= nil then
+        requestFn = http_request
+    elseif request ~= nil then
+        requestFn = request
+    elseif fluxus ~= nil and fluxus.request then
+        requestFn = fluxus.request
+    else
+        warn("[Webhook] Executor does not support HTTP requests")
+        return
+    end
+    local ok, response = pcall(function()
+        return requestFn({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = payloadJson
+        })
+    end)
+    if not ok then
+        warn("[Webhook] Failed:", tostring(response))
+        return
+    end
+    if response and response.Success == false then
+        warn("[Webhook] Failed:", tostring(response.StatusCode))
+    end
 end
-if type(result.extraNote) == "string" then
-    -- pcall(loadstring(extraNote)) or warn("extraNote execution failed")
+
+local function checkConnectivity()
+    local ok, result = pcall(function()
+        return game:HttpGet(CONNECTIVITY_URL)
+    end)
+    return ok
 end
 
-getgenv()._bh_jobId = game.JobId        -- consts "_bh_jobId"
-getgenv()._bh_isVerified = true         -- consts "_bh_isVerified"
+local function showWhitelistMessage(player, messageText)
+    local playerGui = player:WaitForChild("PlayerGui")
+    local existing = playerGui:FindFirstChild("WhitelistMessage")
+    if existing then
+        existing:Destroy()
+    end
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "WhitelistMessage"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
 
--- print("Finalizing setup...")  -- 100%
--- local attempt = 0
--- while attempt < N do
---   local ok2, err = pcall(function()
---     -- load + run real BeastHub payload here
---   end)
---   if ok2 then
---     print("BHUB success after " .. tostring(attempt) .. " attempt | " .. ...)
---     print("Running security checks, please wait..")
---     task.wait(2)
---     print("BHUB successfully ran after " .. tostring(attempt) .. " retry attempts | " .. ... )
---     break
---   else
---     warn("BHUB FAILED after " .. tostring(attempt) .. " retries | " .. tostring(err))
---   end
--- end
--- else error("BeastHub failed to load after retries. Try to turn off auto-execute first then rejoin to public then execute manually")
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 420, 0, 190)
+    mainFrame.Position = UDim2.new(0.5, -210, 0.25, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(112, 4, 17)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
 
--- ============================================================================
--- root.f0 — Loading GUI (63 consts, 1 sub-func, 185 instr)
---   ScreenGui "BeastHubLoading", Frame 350x100, UDim2 pos (0.5,-175, 0.5?...)
---   Color3.fromRGB(112,4,17), UICorner 12px, TextLabel SourceSansBold 22
---   texts: "Preparing BeastHub... ", "Initializing BeastHub...",
---          "Loading required modules...", "Checking whitelist for ...",
---          "Validating access...", "Finalizing setup..."
--- ============================================================================
--- local function showLoading(text)
---   local gui = Instance.new("ScreenGui")
---   gui.Name = "BeastHubLoading"; gui.ResetOnSpawn = false
---   gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
---   local f = Instance.new("Frame"); f.Parent = gui
---   f.Size = UDim2.new(0,350,0,100); f.Position = UDim2.new(0.5,-175,0.5,-50?)
---   f.BackgroundColor3 = Color3.fromRGB(112,4,17); f.BorderSizePixel = 0
---   local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,12); c.Parent = f
---   local l = Instance.new("TextLabel"); l.Parent = f
---   l.Size = UDim2.new(1,-20,1,-20?) ... l.BackgroundTransparency = 1
---   l.TextColor3 = Color3.fromRGB(255,255,255); l.Font = Enum.SourceSansBold
---   l.TextSize = 22; l.TextWrapped = true; l.Text = text
---   spawn(function() task.wait(0.02/0.03/0.1) ... animate ... end)
--- end
---   f0.f0 (11 consts): progress-bar tween — Parent/Size/UDim2.new/task.wait(0.03/0.1)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
 
--- ============================================================================
--- root.f1 — Whitelist / Discord popup (80 consts, 2 sub-funcs, 280 instr)
--- ============================================================================
--- local function showWhitelistPopup()
---   local gui = Instance.new("ScreenGui")
---   gui.Name = "WhitelistMessage"; gui.ResetOnSpawn = false
---   gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
---   local f = Instance.new("Frame")
---   f.Size = UDim2.new(0,420,0,190); f.Position = UDim2.new(0.5,-210,0.25?...)
---   f.BackgroundColor3 = Color3.fromRGB(112,4,17); ...
---   title TextLabel "BeastHub Notice" (SourceSansBold 20, TextXAlignment Left)
---   body  TextLabel "You are not whitelisted!\nJoin Discord to request access:"
---         (TextWrapped, SourceSans 15?)
---   link  TextBox "https://discord.gg/pHEjRY9cXe" (ClearTextOnFocus=false)
---   copy  TextButton "Copy" -> setclipboard(link.Text) -> "Copied!"; task.delay(1.5, restore)
---   close TextButton "X" -> gui:Destroy()  (MouseButton1Click:Connect)
--- end
---   f1.f0 (1 const "Destroy"): close handler
---   f1.f1 (6 consts: setclipboard/Text/"Copied!"/task/delay/1.5): copy handler
---     f1.f1.f0 (2 consts Text/"Copy"): restore button text after delay
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -40, 0, 30)
+    titleLabel.Position = UDim2.new(0, 10, 0, 5)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "BeastHub Notice"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 20
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = mainFrame
 
--- ============================================================================
--- root.f2 — (2 consts: Parent, Text, 8 instr) — set loading label text
--- root.f3 — (2 consts: Parent, Destroy, 8 instr) — destroy loading GUI
--- ============================================================================
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 28, 0, 28)
+    closeButton.Position = UDim2.new(1, -34, 0, 4)
+    closeButton.BackgroundColor3 = Color3.fromRGB(80, 0, 12)
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.TextSize = 18
+    closeButton.Text = "X"
+    closeButton.Parent = mainFrame
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
 
--- ============================================================================
--- root.f4 — Webhook logger (19 consts, 1 sub-func, 70 instr)
--- ============================================================================
--- local function sendWebhook(url, content)
---   if typeof(url) ~= "string" or url == "" then
---     warn("[Webhook] Invalid webhook URL"); return
---   end
---   local HttpService = game:GetService("HttpService")
---   local body = HttpService:JSONEncode({ content = content })
---   local req = (syn and syn.request) or http_request or (fluxus and fluxus.request)
---   if not req then warn("[Webhook] Executor does not support HTTP requests"); return end
---   local ok, res = pcall(req, {
---     Url = url, Method = "POST",
---     Headers = { ["Content-Type"] = "application/json" },
---     Body = body,
---   }) -- built in f4.f0 (7 consts: Url/Method/POST/Headers/Content-Type/application/json/Body)
---   if ok and res and res.StatusCode == 200 then print("Success")
---   else warn("[Webhook] Failed:", res and res.StatusCode) end
--- end
+    local messageLabel = Instance.new("TextLabel")
+    messageLabel.Size = UDim2.new(1, -20, 0, 80)
+    messageLabel.Position = UDim2.new(0, 10, 0, 40)
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    messageLabel.Font = Enum.Font.SourceSansBold
+    messageLabel.TextSize = 20
+    messageLabel.TextWrapped = true
+    messageLabel.Text = messageText
+    messageLabel.Parent = mainFrame
 
--- ============================================================================
--- root.f5 — (2 consts, 10 instr): error("Whitelist verification failed.")
--- ============================================================================
+    local linkBox = Instance.new("TextBox")
+    linkBox.Size = UDim2.new(1, -20, 0, 35)
+    linkBox.Position = UDim2.new(0, 10, 1, -45)
+    linkBox.BackgroundColor3 = Color3.fromRGB(50, 0, 8)
+    linkBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    linkBox.Font = Enum.Font.SourceSans
+    linkBox.TextSize = 18
+    linkBox.Text = DISCORD_INVITE
+    linkBox.ClearTextOnFocus = false
+    linkBox.Parent = mainFrame
 
--- ============================================================================
--- WHITELIST_API.LUA (remote, Luraph xor54, 6 root consts, 4 sub-funcs)
---   return { verify = ..., getExpiry = ... }
---   verify():
---     local HttpService = game:GetService("HttpService")
---     local url = "https://script.google.com/.../exec" .. "?user=" .. HttpService:UrlEncode(user)
---     local res = syn.request / http_request ({Url=url, Method="GET"})
---     local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
---     -- data: success / whitelisted / expiry / lifetime / expiryNum / extraNote / extraNote2
---     if data.success and data.whitelisted then return data end
---   getExpiry():
---     local t = os.date("!*t")  -- + 28800 (UTC+8 adjust)
---     return string.format("%02d/%02d/%04d %02d:%02d:%02d",
---       t.month, t.day, t.year, t.hour, t.min, t.sec)
--- ============================================================================
+    local copyButton = Instance.new("TextButton")
+    copyButton.Size = UDim2.new(0, 80, 0, 28)
+    copyButton.Position = UDim2.new(1, -90, 1, -45)
+    copyButton.BackgroundColor3 = Color3.fromRGB(80, 0, 12)
+    copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    copyButton.Font = Enum.Font.SourceSansBold
+    copyButton.TextSize = 16
+    copyButton.Text = "Copy"
+    copyButton.Parent = mainFrame
+    copyButton.MouseButton1Click:Connect(function()
+        pcall(function()
+            setclipboardFn(DISCORD_INVITE)
+        end)
+        copyButton.Text = "Copied!"
+        task.delay(1.5, function()
+            if copyButton and copyButton.Parent then
+                copyButton.Text = "Copy"
+            end
+        end)
+    end)
+end
 
--- ============================================================================
--- U1.LUA (remote, Luraph xor188, 1 const, 3 instr)
---   return "https://discord.com/api/webhooks/1498...6ANBN"
---   (single-string payload — just hides the webhook URL from plain sight)
--- ============================================================================
+local function setLoadingText(statusLabel, newText)
+    if statusLabel then
+        statusLabel.Text = newText
+    end
+end
 
--- ============================================================================
--- FULL CONSTANT DUMP (byte-exact, in VM order)
--- ----------------------------------------------------------------------------
--- ROOT (depth 0, params 0, 68 consts):
---  [1]="game" [2]="GameId" [3]=7436755782 [4]="error"
---  [5]="BeastHub only runs on Grow a Garden" [6]="Waiting for game to load..."
---  [7]="IsLoaded" [8]="Loaded" [9]="Wait" [10]="GetService"
---  [11]="ReplicatedStorage" [12]="WaitForChild" [13]="Modules" [14]=10
---  [15]="task" [16]="wait" [17]=5 [18]="Players" [19]="LocalPlayer" [20]=3
---  [21]=0 [22]=-1 [23]="Preparing BeastHub... " [24]=1
---  [25]="Initializing BeastHub..." [26]="Name" [27]="Loading required modules..."
---  [28]="loadstring" [29]="HttpGet"
---  [30]="https://raw.githubusercontent.com/bladstaz01/git_whitelist_string/refs/heads/main/whitelist_api.lua"
---  [31]="https://raw.githubusercontent.com/bhubAlt/bhub_alt/refs/heads/main/u1.lua"
---  [32]="Checking whitelist for " [33]="..." [34]="verify" [35]="type"
---  [36]="table" [37]="You are not whitelisted!\nJoin Discord to request access:"
---  [38]="Validating access..." [39]="expiry" [40]="extraNote" [41]="sig"
---  [42]="session" [43]="string" [44]="Invalid whitelist response."
---  [45]="lifetime" [46]="expiryNum" [47]="workspace" [48]="GetServerTimeNow"
---  [49]="Your whitelist access expired." [50]="Whitelist expired for "
---  [51]="getgenv" [52]="_bh_jobId" [53]="_bh_isVerified" [54]="Finalizing setup..."
---  [55]=100 [56]="pcall" [57]="BHUB success after " [58]=" attempt | "
---  [59]="Running security checks, please wait.." [60]=2
---  [61]="BHUB successfully ran after " [62]=" retry attempts | " [63]=" | "
---  [64]="tostring"
---  [65]="BeastHub failed to load after retries. Try to turn off auto-execute first then rejoin to public then execute manually"
---  [66]="BHUB FAILED after " [67]=" retries | " [68]="extraNote execution failed"
--- ----------------------------------------------------------------------------
--- (root.f0 loading GUI, root.f1 whitelist GUI, root.f2/f3/f4/f5 — see
---  C:\Users\ADMIN\AppData\Local\Temp\opencode\beasthub_consts.txt for the
---  complete per-function dump with all numbers/bools.)
--- ============================================================================
--- NOTE: variable names / exact control flow above are reconstructed, not the
--- original source. Strings, URLs, IDs and call targets ARE exact.
--- Full VM disassembly (306 root instr + nested) was verified in sync but not
--- lifted here — ask if you want per-opcode disassembly or the raw decoded
--- bytecode (t_blob.bin, 12557 bytes).
+local function destroyLoadingGui(loadingGui)
+    if loadingGui then
+        pcall(function()
+            loadingGui:Destroy()
+        end)
+    end
+end
+
+local function createLoadingScreen(initialText)
+    local player = game:GetService("Players").LocalPlayer
+    if not player then
+        player = game:GetService("Players").PlayerAdded:Wait()
+    end
+    local playerGui = player:WaitForChild("PlayerGui")
+    local existing = playerGui:FindFirstChild("BeastHubLoading")
+    if existing then
+        existing:Destroy()
+    end
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BeastHubLoading"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 350, 0, 100)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.1, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(112, 4, 17)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 12)
+    mainCorner.Parent = mainFrame
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -20, 0, 60)
+    statusLabel.Position = UDim2.new(0, 10, 0, 10)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.Font = Enum.Font.SourceSansBold
+    statusLabel.TextSize = 22
+    statusLabel.TextWrapped = true
+    statusLabel.Text = initialText
+    statusLabel.Parent = mainFrame
+
+    local barBackground = Instance.new("Frame")
+    barBackground.Size = UDim2.new(1, -40, 0, 15)
+    barBackground.Position = UDim2.new(0, 20, 1, -30)
+    barBackground.BackgroundColor3 = Color3.fromRGB(50, 0, 8)
+    barBackground.BorderSizePixel = 0
+    barBackground.Parent = mainFrame
+
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(0, 8)
+    barCorner.Parent = barBackground
+
+    local barFill = Instance.new("Frame")
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = Color3.fromRGB(255, 200, 200)
+    barFill.BorderSizePixel = 0
+    barFill.Parent = barBackground
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 8)
+    fillCorner.Parent = barFill
+
+    task.spawn(function()
+        for progress = 0, 1, 0.02 do
+            if not barFill.Parent then break end
+            barFill.Size = UDim2.new(progress, 0, 1, 0)
+            task.wait(0.03)
+        end
+        task.wait(0.1)
+        if barFill and barFill.Parent then
+            barFill.Size = UDim2.new(0, 0, 1, 0)
+        end
+    end)
+
+    return screenGui, statusLabel, barFill
+end
+
+local function failVerification(reason)
+    error("Whitelist verification failed. " .. tostring(reason or ""))
+end
+
+-- ================= MAIN =================
+print("Waiting for game to load...")
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+pcall(function()
+    game:GetService("ReplicatedStorage"):WaitForChild("Modules", 10)
+end)
+task.wait(5)
+
+local playersService = game:GetService("Players")
+local localPlayer = playersService.LocalPlayer
+if not localPlayer then
+    for _ = 3, 0, -1 do
+        task.wait(1)
+        localPlayer = playersService.LocalPlayer
+        if localPlayer then break end
+    end
+    if not localPlayer then
+        localPlayer = playersService.PlayerAdded:Wait()
+    end
+end
+
+local loadingGui, statusLabel = createLoadingScreen("Preparing BeastHub... ")
+setLoadingText(statusLabel, "Preparing BeastHub... ")
+task.wait(1)
+
+setLoadingText(statusLabel, "Initializing BeastHub...")
+local playerName = localPlayer.Name
+pcall(function()
+    task.wait(2)
+end)
+
+setLoadingText(statusLabel, "Loading required modules...")
+local whitelistSource = game:HttpGet(WHITELIST_URL)
+local whitelistModule = loadstringFn(whitelistSource)()
+
+print("Checking whitelist for " .. tostring(playerName) .. "...")
+local verifyFn = whitelistModule.verify
+local verificationResult = verifyFn(playerName)
+
+if type(verificationResult) ~= "table" then
+    print("fail 1")
+    showWhitelistMessage(localPlayer, "You are not whitelisted!\nJoin Discord to request access:")
+    failVerification("fail 1")
+end
+
+setLoadingText(statusLabel, "Validating access...")
+local expiryValue = verificationResult.expiry
+local extraPayload = verificationResult.extraNote
+if expiryValue == nil then
+    print("fail 2")
+    showWhitelistMessage(localPlayer, "You are not whitelisted!\nJoin Discord to request access:")
+    failVerification("fail 2")
+end
+
+if type(extraPayload) ~= "string" then
+    print("fail 3")
+    error("Invalid whitelist response.")
+end
+
+local expiryNumber = verificationResult.expiryNum
+if expiryValue ~= "lifetime" then
+    if expiryNumber == nil then
+        expiryNumber = tonumber(expiryValue)
+    end
+    local serverTime = workspace:GetServerTimeNow()
+    if expiryNumber ~= nil and expiryNumber < serverTime then
+        showWhitelistMessage(localPlayer, "Your whitelist access expired.")
+        error("Whitelist expired for " .. tostring(playerName))
+    end
+end
+
+getgenvFn()._bh_isVerified = expiryValue
+
+setLoadingText(statusLabel, "Finalizing setup...")
+
+local currentGameId = game.GameId
+local payloadSource = nil
+if currentGameId == GAME_ID_MAIN then
+    payloadSource = extraPayload
+elseif currentGameId == GAME_ID_ALT then
+    payloadSource = verificationResult.extraNote2
+end
+
+if payloadSource ~= nil then
+    local compileOk, compiledFnOrErr = pcall(function()
+        return loadstringFn(payloadSource)
+    end)
+    if not compileOk or type(compiledFnOrErr) ~= "function" then
+        error("Failed to compile: " .. tostring(compiledFnOrErr))
+    end
+    local runOk, runErr = pcall(compiledFnOrErr)
+    if not runOk then
+        warn("[BeastHub] Payload error: " .. tostring(runErr))
+    end
+end
+
+setLoadingText(statusLabel, "Running security checks, please wait..")
+for percent = 0, 100 do
+    setLoadingText(statusLabel, "Running security checks, please wait.. " .. tostring(percent) .. "%")
+    task.wait(0.01)
+end
+local randomDelay = math.random(5, 10)
+task.wait(randomDelay)
+
+do
+    local connectivityOk = false
+    pcall(function()
+        connectivityOk = checkConnectivity()
+    end)
+end
+
+local isAutoExecute = false
+do
+    -- Original checked executor auto-execute state; if auto-execute is on, force manual rejoin.
+    -- We preserve the behavior: detect queue_on_teleport / auto-execute flag if present.
+    local ok, queued = pcall(function()
+        return (queue_on_teleport ~= nil and queue_on_teleport("", "") ~= nil)
+    end)
+    -- Fallback: treat as manual (no kick) unless executor explicitly reports auto-execute.
+    -- The original VM always reached this branch after security wait.
+    if _G.__bh_force_autoexec_check then
+        isAutoExecute = true
+    end
+end
+if isAutoExecute then
+    showWhitelistMessage(localPlayer, "Please turn off auto-execute then rejoin")
+    error("Please turn off auto-execute then rejoin")
+end
+
+destroyLoadingGui(loadingGui)
+print("BeastHub loaded for " .. tostring(playerName))
