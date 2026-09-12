@@ -6,7 +6,7 @@
 local loadstringFn = loadstring or load
 local getgenvFn = (getgenv ~= nil) and getgenv or function() return _G end
 local setclipboardFn = (setclipboard ~= nil) and setclipboard or function(s) print("[clipboard]", s) end
-local WHITELIST_URL = "https://script.google.com/macros/s/AKfycbzmEqYiFZ_ZjbiCG3tuha7iGH_0Gbx_fl3TzpL3raBoLTD-uXJ-eQyGk4R7Twa3M44Q/exec"
+local WHITELIST_URL = "https://script.google.com/macros/s/AKfycbxr6ZVIVCPHnLs4Q0ri0Ze6mpEZHIVqghS76_A9Z_kV5f5Nqhmfp2lhpKB9IPrWVExB/exec"
 local DISCORD_INVITE = "https://discord.gg/pHEjRY9cXe"
 local GAME_ID_MAIN = 7436755782
 local GAME_ID_ALT = 10200395747
