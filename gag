@@ -339,16 +339,21 @@ if payloadSource == nil or payloadSource == "" then
 end
 
 if payloadSource ~= nil and payloadSource ~= "" then
+    print("Payload len:", #payloadSource)
     local compileOk, compiledFnOrErr = pcall(function()
         return loadstringFn(payloadSource)
     end)
+    print("Payload compile:", compileOk, type(compiledFnOrErr))
     if not compileOk or type(compiledFnOrErr) ~= "function" then
         error("Failed to compile: " .. tostring(compiledFnOrErr))
     end
     local runOk, runErr = pcall(compiledFnOrErr)
+    print("Payload run:", runOk, tostring(runErr))
     if not runOk then
         warn("[BeastHub] Payload error: " .. tostring(runErr))
     end
+else
+    print("Payload empty, skipped")
 end
 
 setLoadingText(statusLabel, "Running security checks, please wait..")
