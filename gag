@@ -11,7 +11,7 @@ local DISCORD_INVITE = "https://discord.gg/pHEjRY9cXe"
 local GAME_ID_MAIN = 7436755782
 local GAME_ID_ALT = 10200395747
 local CONNECTIVITY_URL = "https://www.google.com"
-local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/main/main2.lua"
+local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/main/script.lua"
 
 local function sendWebhook(webhookUrl, messageText)
     if typeof(messageText) ~= "string" or messageText == "" then
