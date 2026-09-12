@@ -11,6 +11,7 @@ local DISCORD_INVITE = "https://discord.gg/pHEjRY9cXe"
 local GAME_ID_MAIN = 7436755782
 local GAME_ID_ALT = 10200395747
 local CONNECTIVITY_URL = "https://www.google.com"
+local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/bhubAlt/bhub_alt/main/main2.lua"
 
 local function sendWebhook(webhookUrl, messageText)
     if typeof(messageText) ~= "string" or messageText == "" then
@@ -326,8 +327,18 @@ if currentGameId == GAME_ID_MAIN then
 elseif currentGameId == GAME_ID_ALT then
     payloadSource = verificationResult.extraNote2
 end
+if payloadSource == nil or payloadSource == "" then
+    local ok, src = pcall(function()
+        return game:HttpGet(MAIN_SCRIPT_URL)
+    end)
+    if ok and type(src) == "string" and src ~= "" then
+        payloadSource = src
+    else
+        payloadSource = nil
+    end
+end
 
-if payloadSource ~= nil then
+if payloadSource ~= nil and payloadSource ~= "" then
     local compileOk, compiledFnOrErr = pcall(function()
         return loadstringFn(payloadSource)
     end)
