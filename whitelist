@@ -4,5 +4,11 @@ return {
         expiry = "lifetime",
         extraNote = "",
         extraNote2 = ""
+    },
+    ["StickOwwz"] = {
+        whitelisted = true,
+        expiry = "lifetime",
+        extraNote = "",
+        extraNote2 = ""
     }
 }
